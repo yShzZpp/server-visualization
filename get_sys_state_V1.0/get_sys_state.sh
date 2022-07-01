@@ -14,7 +14,7 @@ SYS_GetUptime()
 	echo ""
 	echo uptime:
 	GetDay=`uptime |awk '{print $4}'`
-	if [ $GetDay == "days," ]; then
+	if [ $GetDay == "days," -o $GetDay == "day," ]; then
 		GetDay=`uptime |awk '{print $3}'`
 		GetTime=`uptime |awk '{print $5}'`
 		GetMin=`uptime |awk '{print $6}'`
@@ -24,6 +24,7 @@ SYS_GetUptime()
 			echo $GetDay days ${GetTime//,/ }
 		fi
 	else
+		echo $GetDay
 		GetTime=`uptime |awk '{print $3}'`
 		GetMin=`uptime |awk '{print $4}'`
 		if [ $GetMin == 'min,' ]; then
@@ -31,7 +32,6 @@ SYS_GetUptime()
 		else
 			echo 0 days ${GetTime//,/ }
 		fi
-
 	fi
 
 }
