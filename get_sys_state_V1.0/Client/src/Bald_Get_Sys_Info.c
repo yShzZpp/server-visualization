@@ -17,7 +17,7 @@
 time_t g_u32Time;
 CPU_JIFFIES_ST g_stCpu;
 
-#define MAX_BUFF_SIZE 1024
+#define MAX_BUFF_SIZE 4096
 
 /******************************字符串处理函数******************************/
 void GET_SYS_Del_Str_Useless(char *pcData)
@@ -66,7 +66,7 @@ int8_t GET_SYS_UserName(char *pcData)
 
 int8_t GET_SYS_Version(char *pcData)
 {
-	FILE *fp = popen("lsb_release -a|sed -n 3p |awk '{print$2}' 2>/dev/null","r");
+	FILE *fp = popen("lsb_release -a|sed -n 4p |awk '{print$2}' 2>/dev/null","r");
 	fread(pcData,MAX_BUFF_SIZE,1,fp);
 	GET_SYS_Del_Str_Useless(pcData);
 	fclose(fp);
@@ -75,7 +75,7 @@ int8_t GET_SYS_Version(char *pcData)
 
 int8_t GET_SYS_Distributor(char *pcData)
 {
-	FILE *fp = popen("lsb_release -a|sed -n 1p|awk '{print$3}' 2>/dev/null","r");
+	FILE *fp = popen("lsb_release -a|sed -n 2p|awk '{print$3}' 2>/dev/null","r");
 	fread(pcData,MAX_BUFF_SIZE,1,fp);
 	GET_SYS_Del_Str_Useless(pcData);
 	fclose(fp);
@@ -265,7 +265,7 @@ int16_t GET_SYS_NiceCpu(char * pcData)
 
 int16_t GET_SYS_Proc_Stat(CPU_INFO_ST **ppstCpu)
 {
-	char aTempBuff[2048];
+	char aTempBuff[4096];
 	int fd = open("/proc/stat",O_RDONLY);
 	if(fd < 0)
 	{
@@ -274,7 +274,7 @@ int16_t GET_SYS_Proc_Stat(CPU_INFO_ST **ppstCpu)
 	}
 
 	//读取
-	uint32_t u32Len = read(fd,aTempBuff,2048);
+	uint32_t u32Len = read(fd,aTempBuff,4096);
 	if(u32Len == 0)
 	{
 		perror("read /proc/stat error");
@@ -307,6 +307,7 @@ int16_t GET_SYS_Proc_Stat(CPU_INFO_ST **ppstCpu)
 		perror("cpu realloc error");
 		return -1;
 	}
+	memset((*ppstCpu)->stCpu,0,sizeof(CPU_JIFFIES_ST) * (*ppstCpu)->u32CpuNum);
 
 	//开始读取cpu数值
 	i=0;
@@ -429,8 +430,121 @@ void GET_SYS_CpuInit(void)
 
 /******************************cpu使用率******************************/
 
+NET_INTERFACE_ST g_stNet;
+
+int16_t GET_SYS_Read_Proc_Net_Dev(NET_INFO_ST **ppstNet)
+{
+	int fd;
+	char aTempBuff[4096];
+	memset(aTempBuff,0,4096);
+
+	//打开文件
+	fd = open ("/proc/net/dev",O_RDONLY);
+
+	if(fd < 0)
+	{
+		perror("open /proc/net/dev error");
+		return -1;
+	}
+
+	//读取文件
+	uint32_t u32Len = read(fd,aTempBuff,4096);
+	if(u32Len == 0)
+	{
+		perror("read /proc/net/dev error");
+		return -1;
+	}
+
+	//判断有多少个网口
+	uint32_t i = 0 , j = 0;
+	while( i < u32Len )
+	{
+		if(aTempBuff[i] == '\n')
+		{
+			(*ppstNet)->u32NetNum++;
+			if((*ppstNet)->u32NetNum == 2)j = i+1;
+		}
+		i++;
+	}
+
+	(*ppstNet)->u32NetNum -= 2;
+
+	//重新开辟空间
+	*ppstNet = realloc(*ppstNet, sizeof(NET_INFO_ST) + sizeof(NET_INTERFACE_ST) * (*ppstNet)->u32NetNum);
+	memset((*ppstNet)->stNetInter,0, sizeof(NET_INTERFACE_ST) * (*ppstNet)->u32NetNum);
+
+	for( i = 0 ; i < (*ppstNet)->u32NetNum ;i++ )
+	{
+		while(aTempBuff[j] == ' ' || aTempBuff[j] == '\n')j++;
+		sscanf(&aTempBuff[j],"%[^:]%*[^0-9]%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d",
+			(*ppstNet)->stNetInter[i].cName,
+			&(*ppstNet)->stNetInter[i].stRx.u32Bytes, &(*ppstNet)->stNetInter[i].stRx.u32Packets,
+			&(*ppstNet)->stNetInter[i].stRx.u32Errs,&(*ppstNet)->stNetInter[i].stRx.u32Drop,
+			&(*ppstNet)->stNetInter[i].stRx.u32Fifo, &(*ppstNet)->stNetInter[i].stRx.u32Frame,
+			&(*ppstNet)->stNetInter[i].stRx.u32Compressed,&(*ppstNet)->stNetInter[i].stRx.u32Multicast,
+			&(*ppstNet)->stNetInter[i].stTx.u32Bytes, &(*ppstNet)->stNetInter[i].stTx.u32Packets,
+			&(*ppstNet)->stNetInter[i].stTx.u32Errs,&(*ppstNet)->stNetInter[i].stTx.u32Drop,
+			&(*ppstNet)->stNetInter[i].stTx.u32Fifo, &(*ppstNet)->stNetInter[i].stTx.u32Frame,
+			&(*ppstNet)->stNetInter[i].stTx.u32Compressed,&(*ppstNet)->stNetInter[i].stTx.u32Multicast);	
+		j++;
+		while(j <u32Len && aTempBuff[j] != '\n')j++;
+	}
 
 
+	close(fd);
+	return 0;
+}
+
+
+
+cJSON *GET_SYS_GetNet(void)
+{
+	cJSON *cjaRoot = cJSON_CreateArray();
+	NET_INFO_ST *pstNet = malloc(sizeof(NET_INFO_ST));
+	memset(pstNet,0,sizeof(NET_INFO_ST));
+
+	int ret = GET_SYS_Read_Proc_Net_Dev(&pstNet);
+	if(ret == -1)
+	{
+		free(pstNet);
+		pstNet = NULL;
+	}
+
+	for(uint32_t i = 0 ; i < pstNet->u32NetNum ; i ++)
+	{
+
+		cJSON *cjTempItem = cJSON_CreateObject();
+		cJSON_AddStringToObject(cjTempItem, "name", pstNet->stNetInter[i].cName);
+
+		cJSON *cjRx = cJSON_CreateObject();
+		cJSON_AddNumberToObject(cjRx,"bytes", pstNet->stNetInter[i].stRx.u32Bytes);
+		cJSON_AddNumberToObject(cjRx,"packets", pstNet->stNetInter[i].stRx.u32Packets);
+		cJSON_AddNumberToObject(cjRx,"errs", pstNet->stNetInter[i].stRx.u32Errs);
+		cJSON_AddNumberToObject(cjRx,"drop", pstNet->stNetInter[i].stRx.u32Drop);
+		cJSON_AddNumberToObject(cjRx,"fifo", pstNet->stNetInter[i].stRx.u32Fifo);
+		cJSON_AddNumberToObject(cjRx,"frame", pstNet->stNetInter[i].stRx.u32Frame);
+		cJSON_AddNumberToObject(cjRx,"compressed", pstNet->stNetInter[i].stRx.u32Compressed);
+		cJSON_AddNumberToObject(cjRx,"multicast", pstNet->stNetInter[i].stRx.u32Multicast);
+
+		cJSON *cjTx = cJSON_CreateObject();
+		cJSON_AddNumberToObject(cjTx,"bytes", pstNet->stNetInter[i].stTx.u32Bytes);
+		cJSON_AddNumberToObject(cjTx,"packets", pstNet->stNetInter[i].stTx.u32Packets);
+		cJSON_AddNumberToObject(cjTx,"errs", pstNet->stNetInter[i].stTx.u32Errs);
+		cJSON_AddNumberToObject(cjTx,"drop", pstNet->stNetInter[i].stTx.u32Drop);
+		cJSON_AddNumberToObject(cjTx,"fifo", pstNet->stNetInter[i].stTx.u32Fifo);
+		cJSON_AddNumberToObject(cjTx,"frame", pstNet->stNetInter[i].stTx.u32Frame);
+		cJSON_AddNumberToObject(cjTx,"compressed", pstNet->stNetInter[i].stTx.u32Compressed);
+		cJSON_AddNumberToObject(cjTx,"multicast", pstNet->stNetInter[i].stTx.u32Multicast);
+
+		cJSON_AddItemToObject(cjTempItem,"rx",cjRx);
+		cJSON_AddItemToObject(cjTempItem,"tx",cjTx);
+
+		cJSON_AddItemToArray(cjaRoot, cjTempItem);
+	}
+
+
+	return cjaRoot;
+}
 
 
 

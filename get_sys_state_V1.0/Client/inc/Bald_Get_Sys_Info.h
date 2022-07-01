@@ -60,6 +60,7 @@ typedef struct cpu_info_st
 
 
 
+cJSON *GET_SYS_GetNet(void);
 void GET_SYS_CpuInit(void);
 cJSON *GET_SYS_GetOnce(void);
 cJSON *GET_SYS_GetTime(void);
