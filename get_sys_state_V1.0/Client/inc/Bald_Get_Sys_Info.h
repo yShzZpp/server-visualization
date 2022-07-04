@@ -59,13 +59,17 @@ typedef struct cpu_info_st
 
 
 
-
-cJSON *GET_SYS_GetNet(void);
 void GET_SYS_CpuInit(void);
-cJSON *GET_SYS_GetOnce(void);
-cJSON *GET_SYS_GetTime(void);
+void GET_SYS_NetInit(void);
+void GET_SYS_DiskInit(void);
+void GET_SYS_DiskFree(void);
+
+cJSON *GET_SYS_GetNet();
+cJSON *GET_SYS_GetOnce(cJSON *cjOpt);
+cJSON *GET_SYS_GetTime(cJSON *cjOpt);
 cJSON *GET_SYS_GetMem(void);
 cJSON *GET_SYS_GetCpu(void);
+cJSON *GET_SYS_GetDisk(void);
 
 
 

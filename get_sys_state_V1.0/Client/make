@@ -135,23 +135,27 @@ cJSON *GET_SYS_GetOnce(cJSON *cjOpt)
 		for ( int i = 0 ; i < u8Len ; i++ )
 		{
 			cjTempItem = cJSON_GetArrayItem(cjArray, i);
-			if( cjTempItem != NULL && strcmp(cjTempItem->valuestring,"version") == 0)
+		printf("-----%s:%d-----\n",__FUNCTION__,__LINE__);
+		printf("%d\n",cjTempItem->type);
+		printf("%s\n",cjTempItem->valuestring);
+		printf("-----%s:%d-----\n",__FUNCTION__,__LINE__);
+			if( cjTempItem != NULL && strcmp(cjTempItem->string,"version") == 0)
 			{
 				au8Show[0] = bShowOrNot;
 			}
-			else if( cjTempItem != NULL && strcmp(cjTempItem->valuestring,"distributor") == 0)
+			else if( cjTempItem != NULL && strcmp(cjTempItem->string,"distributor") == 0)
 			{
 				au8Show[1] = bShowOrNot;
 			}
-			else if( cjTempItem != NULL && strcmp(cjTempItem->valuestring,"cpu_num") == 0)
+			else if( cjTempItem != NULL && strcmp(cjTempItem->string,"cpu_num") == 0)
 			{
 				au8Show[2] = bShowOrNot;
 			}
-			else if( cjTempItem != NULL && strcmp(cjTempItem->valuestring,"host_name") == 0)
+			else if( cjTempItem != NULL && strcmp(cjTempItem->string,"host_name") == 0)
 			{
 				au8Show[3] = bShowOrNot;
 			}
-			else if( cjTempItem != NULL && strcmp(cjTempItem->valuestring,"user_name") == 0)
+			else if( cjTempItem != NULL && strcmp(cjTempItem->string,"user_name") == 0)
 			{
 				au8Show[4] = bShowOrNot;
 			}
