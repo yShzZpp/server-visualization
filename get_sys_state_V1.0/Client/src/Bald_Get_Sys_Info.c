@@ -31,7 +31,14 @@ NET_INFO_ST *g_pstNet;
 
 
 /******************************字符串处理函数******************************/
-void GET_SYS_Del_Str_Useless(char *pcData)
+
+/******************************************************
+ * ****** Function		:	GET_SYS_Del_Str_Useless 
+ * ****** brief			:	删除字符串前后的空格 和 换行
+ * ****** param			:	@pcData:需要修改的字符串
+ * ****** return		:   NULL
+ * *******************************************************/
+static void GET_SYS_Del_Str_Useless(char *pcData)
 {
 	uint32_t u32Len = strlen(pcData);
 	char aTempData[u32Len];
@@ -49,7 +56,13 @@ void GET_SYS_Del_Str_Useless(char *pcData)
 
 /******************************只获取一次******************************/
 
-int8_t GET_SYS_CpuNum(char *pcData)
+/******************************************************
+ * ****** Function		:   GET_SYS_CpuNum
+ * ****** brief			:	使用命令的方式获取 cpu的数量	
+ * ****** param			:	@pcData:写入结果的地址
+ * ****** return		:	成功返回0 错误返回-1
+ * *******************************************************/
+static int8_t GET_SYS_CpuNum(char *pcData)
 {
 	FILE *fp = popen("grep -c \"model name\" /proc/cpuinfo","r");	
 	fread(pcData, MAX_BUFF_SIZE, 1, fp);
@@ -57,7 +70,13 @@ int8_t GET_SYS_CpuNum(char *pcData)
 	return 0;
 }
 
-int8_t GET_SYS_HostName(char *pcData)
+/******************************************************
+ * ****** Function		:   GET_SYS_HostName
+ * ****** brief			:	使用命令的方式获取 主机名
+ * ****** param			:	@pcData:写入结果的地址
+ * ****** return		:	成功返回0 错误返回-1
+ * *******************************************************/
+static int8_t GET_SYS_HostName(char *pcData)
 {
 	int fd = open("/etc/hostname",O_RDONLY);	
 	read(fd,pcData,MAX_BUFF_SIZE);
@@ -66,7 +85,13 @@ int8_t GET_SYS_HostName(char *pcData)
 	return 0;
 }
 
-int8_t GET_SYS_UserName(char *pcData)
+/******************************************************
+ * ****** Function		:   GET_SYS_UserName
+ * ****** brief			:	使用命令的方式获取用户的名称 
+ * ****** param			:	@pcData:写入结果的地址
+ * ****** return		:	成功返回0 错误返回-1
+ * *******************************************************/
+static int8_t GET_SYS_UserName(char *pcData)
 {
 	FILE *fp = popen("whoami","r");
 	fread(pcData,MAX_BUFF_SIZE,1,fp);
@@ -75,7 +100,13 @@ int8_t GET_SYS_UserName(char *pcData)
 	return 0;
 }
 
-int8_t GET_SYS_Version(char *pcData)
+/******************************************************
+ * ****** Function		:   GET_SYS_Version
+ * ****** brief			:	使用命令的方式获取系统版本
+ * ****** param			:	@pcData:写入结果的地址
+ * ****** return		:	成功返回0 错误返回-1
+ * *******************************************************/
+static int8_t GET_SYS_Version(char *pcData)
 {
 	FILE *fp = popen("lsb_release -a|sed -n 4p |awk '{print$2}' 2>/dev/null","r");
 	fread(pcData,MAX_BUFF_SIZE,1,fp);
@@ -84,7 +115,13 @@ int8_t GET_SYS_Version(char *pcData)
 	return 0;
 }
 
-int8_t GET_SYS_Distributor(char *pcData)
+/******************************************************
+ * ****** Function		:   GET_SYS_Distributor
+ * ****** brief			:	使用命令的方式获取系统发行系统
+ * ****** param			:	@pcData:写入结果的地址
+ * ****** return		:	成功返回0 错误返回-1
+ * *******************************************************/
+static int8_t GET_SYS_Distributor(char *pcData)
 {
 	FILE *fp = popen("lsb_release -a|sed -n 2p|awk '{print$3}' 2>/dev/null","r");
 	fread(pcData,MAX_BUFF_SIZE,1,fp);
@@ -93,9 +130,14 @@ int8_t GET_SYS_Distributor(char *pcData)
 	return 0;
 }
 
+/******************************************************
+ * ****** Function		:   GET_SYS_GetOnce
+ * ****** brief			:	解析传入的 筛选设置json，根据设置 获取对应的数值并写入json
+ * ****** param			:   @cjOpt:筛选设置
+ * ****** return		:   无论成功与否都返回json obj
+ * *******************************************************/
 cJSON *GET_SYS_GetOnce(cJSON *cjOpt)
 {
-	bool bAll = false;
 	uint8_t au8Show[5] = {0};
 
 	cJSON *cjRoot = cJSON_CreateObject();
@@ -106,7 +148,10 @@ cJSON *GET_SYS_GetOnce(cJSON *cjOpt)
 	//设置json为展示全部
 	if(cjOpt->type == cJSON_String && cjOpt->valuestring != NULL && strcmp(GET_SYS_STR_SHOW_ALL,cjOpt->valuestring) == 0)
 	{
-		bAll = true;
+		for ( int i = 0 ; i < sizeof(au8Show)/sizeof(uint8_t); i ++ )
+		{
+			au8Show[i] = true;
+		}
 	}
 	//设置json为指定展示
 	else if(cjOpt->type == cJSON_Object)
@@ -118,11 +163,19 @@ cJSON *GET_SYS_GetOnce(cJSON *cjOpt)
 		if((cjArray = cJSON_GetObjectItem(cjOpt, GET_SYS_STR_SHOW)) != NULL && cjArray->type == cJSON_Array)
 		{
 			bShowOrNot = true;
+			for ( int i = 0 ; i < sizeof(au8Show)/sizeof(uint8_t) ; i ++ )
+			{
+				au8Show[i] = false;
+			}
 		}
 		//指定不展示
 		else if((cjArray = cJSON_GetObjectItem(cjOpt, GET_SYS_STR_EXCLUDE)) != NULL && cjArray->type == cJSON_Array)
 		{
 			bShowOrNot = false;
+			for ( int i = 0 ; i < sizeof(au8Show)/sizeof(uint8_t) ; i ++ )
+			{
+				au8Show[i] = true;
+			}
 		}
 		//都没有
 		else
@@ -159,23 +212,21 @@ cJSON *GET_SYS_GetOnce(cJSON *cjOpt)
 
 	}
 
-
-
-
+	//写入
 	//version
-	if( ( bAll || au8Show[0] ) && ( GET_SYS_Version(aTempBuff) == 0))
+	if( ( au8Show[0] ) && ( GET_SYS_Version(aTempBuff) == 0))
 	{
 		cJSON_AddStringToObject(cjRoot, "version",(aTempBuff));	
 	}
 
 	//distributor
-	if( ( bAll || au8Show[1] ) && ( GET_SYS_Distributor(aTempBuff) == 0))
+	if( ( au8Show[1] ) && ( GET_SYS_Distributor(aTempBuff) == 0))
 	{
 		cJSON_AddStringToObject(cjRoot, "distributor",(aTempBuff));	
 	}
 
 	//cpu数
-	if( ( bAll || au8Show[2] ) && ( GET_SYS_CpuNum(aTempBuff) == 0))
+	if( ( au8Show[2] ) && ( GET_SYS_CpuNum(aTempBuff) == 0))
 	{
 		cJSON_AddNumberToObject(cjRoot, "cpu_num", atoi(aTempBuff));	
 	}
@@ -183,7 +234,7 @@ cJSON *GET_SYS_GetOnce(cJSON *cjOpt)
 	bzero(aTempBuff, MAX_BUFF_SIZE);
 
 	//hostname
-	if( ( bAll || au8Show[3] ) && ( GET_SYS_HostName(aTempBuff) == 0))
+	if( ( au8Show[3] ) && ( GET_SYS_HostName(aTempBuff) == 0))
 	{
 		cJSON_AddStringToObject(cjRoot, "host_name",(aTempBuff));	
 	}
@@ -191,7 +242,7 @@ cJSON *GET_SYS_GetOnce(cJSON *cjOpt)
 	bzero(aTempBuff, MAX_BUFF_SIZE);
 
 	//username
-	if( ( bAll || au8Show[4] ) && ( GET_SYS_UserName(aTempBuff) == 0))
+	if( ( au8Show[4] ) && ( GET_SYS_UserName(aTempBuff) == 0))
 	{
 		cJSON_AddStringToObject(cjRoot, "user_name",(aTempBuff));	
 	}
@@ -200,7 +251,14 @@ cJSON *GET_SYS_GetOnce(cJSON *cjOpt)
 }
 
 /******************************开机时间******************************/
-int16_t GET_SYS_UpTime(time_t *u32Time)
+
+/******************************************************
+ * ****** Function		:   GET_SYS_UpTime
+ * ****** brief			:	获取开机时间 并计算执行的间隔 用于计算网络上下行速度
+ * ****** param			:   @u32Time:写入结果的地址
+ * ****** return		:	成功返回0 错误返回-1
+ * *******************************************************/
+static int16_t GET_SYS_UpTime(time_t *u32Time)
 {
 	struct sysinfo stSysInfo;
 	if (sysinfo(&stSysInfo)) {
@@ -213,26 +271,114 @@ int16_t GET_SYS_UpTime(time_t *u32Time)
 	return 0;
 }
 
-
+/******************************************************
+ * ****** Function		:   GET_SYS_GetTime
+ * ****** brief			:	根据传入的筛选设置，将指定的参数写入json
+ * ****** param			:	@cjOpt:筛选参数
+ * ****** return		:	成功与否都返回json obj
+ * *******************************************************/
 cJSON *GET_SYS_GetTime(cJSON *cjOpt)
 {
 	cJSON *cjRoot = cJSON_CreateObject();
+	uint8_t au8Show[5] = {0};
 
 	char aTempBuff[MAX_BUFF_SIZE];	
 	bzero(aTempBuff, MAX_BUFF_SIZE);
 
-	//uptime
+	//全部输出
+	if(cjOpt->type == cJSON_String && strcmp(GET_SYS_STR_SHOW_ALL, cjOpt->valuestring) == 0)
+	{
+
+		for ( int i = 0 ; i < sizeof(au8Show)/sizeof(uint8_t) ; i ++ )
+		{
+			au8Show[i] = true;
+		}
+	}
+	//筛选输出
+	else if(cjOpt->type == cJSON_Object)
+	{
+		cJSON *cjArray;
+		cJSON *cjTempItem;
+		bool bShowOrNot = false;
+		//指定展示
+		if((cjArray = cJSON_GetObjectItem(cjOpt, GET_SYS_STR_SHOW)) != NULL && cjArray->type == cJSON_Array)
+		{
+			bShowOrNot = true;
+			for ( int i = 0 ; i < sizeof(au8Show)/sizeof(uint8_t) ; i ++ )
+			{
+				au8Show[i] = false;
+			}
+		}
+		//指定不展示
+		else if((cjArray = cJSON_GetObjectItem(cjOpt, GET_SYS_STR_EXCLUDE)) != NULL && cjArray->type == cJSON_Array)
+		{
+			bShowOrNot = false;
+			for ( int i = 0 ; i < sizeof(au8Show)/sizeof(uint8_t) ; i ++ )
+			{
+				au8Show[i] = true;
+			}
+		}
+		//都没有
+		else
+		{
+			printf("json do not have \"e\" or \"s\"\n");
+			return cjRoot;
+		}
+
+		uint32_t u32Len = cJSON_GetArraySize(cjArray);
+
+		for ( int i = 0 ; i < u32Len ; i ++ )
+		{
+			cjTempItem = cJSON_GetArrayItem(cjArray, i);
+			if(cjTempItem != NULL && strcmp(cjTempItem->valuestring,"allsec") == 0)
+			{
+				au8Show[0] = bShowOrNot;
+			}
+			else if(cjTempItem != NULL && strcmp(cjTempItem->valuestring,"day") == 0)
+			{
+				au8Show[1] = bShowOrNot;
+			}
+			else if(cjTempItem != NULL && strcmp(cjTempItem->valuestring,"hour") == 0)
+			{
+				au8Show[2] = bShowOrNot;
+			}
+			else if(cjTempItem != NULL && strcmp(cjTempItem->valuestring,"min") == 0)
+			{
+				au8Show[3] = bShowOrNot;
+			}
+			else if(cjTempItem != NULL && strcmp(cjTempItem->valuestring,"sec") == 0)
+			{
+				au8Show[4] = bShowOrNot;
+			}
+		}
+	}
+
+	//获取时间
 	time_t u32UpTime;	
+	if( GET_SYS_UpTime(&u32UpTime) == -1 )
+	{
+		return cjRoot;
+	}
 
-		
-
-	if( GET_SYS_UpTime(&u32UpTime) == 0)
+	if(au8Show[0])
 	{
 		cJSON_AddNumberToObject(cjRoot, "allsec", u32UpTime);
-		cJSON_AddNumberToObject(cjRoot, "day", (uint32_t)u32UpTime/86400);
-		cJSON_AddNumberToObject(cjRoot, "hour", (uint32_t)u32UpTime%86400/3600);
-		cJSON_AddNumberToObject(cjRoot, "min", (uint32_t)u32UpTime%86400%3600/60);
-		cJSON_AddNumberToObject(cjRoot, "sec", (uint32_t)u32UpTime%86400%3600%60);
+	}
+	if(au8Show[1])
+	{
+		cJSON_AddNumberToObject(cjRoot, "day", (uint32_t)(u32UpTime/86400));
+	}
+	if(au8Show[2])
+	{
+		cJSON_AddNumberToObject(cjRoot, "hour", (uint32_t)(u32UpTime%86400/3600));
+	}
+	if(au8Show[3])
+	{
+		cJSON_AddNumberToObject(cjRoot, "min", (uint32_t)(u32UpTime%86400%3600/60));
+	}
+	if(au8Show[4])
+	{
+		cJSON_AddNumberToObject(cjRoot, "sec", (uint32_t)(u32UpTime%86400%3600%60));
 	}
 
 	return cjRoot;
