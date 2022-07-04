@@ -388,7 +388,13 @@ cJSON *GET_SYS_GetTime(cJSON *cjOpt)
 /******************************内存******************************/
 
 #define MEM_NUM 15
-int16_t GET_SYS_Mem(uint32_t au32[MEM_NUM])
+/******************************************************
+ * ****** Function		:   GET_SYS_Mem
+ * ****** brief			:	使用free命令获取 内存
+ * ****** param			:   @au32Mem:存放信息的数组
+ * ****** return		:   成功返回0 失败成功返回0 失败返回-1
+ * *******************************************************/
+int16_t GET_SYS_Mem(uint32_t au32Mem[MEM_NUM])
 {
 	char aTempBuff[MAX_BUFF_SIZE];
 	//按kB为单位获取 内存信息 需要兼容
@@ -405,7 +411,7 @@ int16_t GET_SYS_Mem(uint32_t au32[MEM_NUM])
 	uint32_t i = 0,j = 0;
 	for ( j = 0 ; j < MEM_NUM; j++ )
 	{
-		sscanf(&aTempBuff[i], "%d[^ ]",&au32[j]);
+		sscanf(&aTempBuff[i], "%d[^ ]",&au32Mem[j]);
 		while(i < u32Len && aTempBuff[i] != ' ')i++;
 		i++;
 	}
@@ -415,29 +421,194 @@ int16_t GET_SYS_Mem(uint32_t au32[MEM_NUM])
 	return 0;
 }
 
-cJSON *GET_SYS_GetMem(void)
+/******************************************************
+ * ****** Function		:   GET_SYS_GetMem
+ * ****** brief			:	根据传入的筛选设置，将指定的参数写入json
+ * ****** param			:	@cjOpt:筛选设置json
+ * ****** return		:	成功与否都返回json
+ * *******************************************************/
+cJSON *GET_SYS_GetMem(cJSON *cjOpt)
 {
 	cJSON *cjRoot = cJSON_CreateObject();
+
 	uint32_t au32Mem[MEM_NUM];
 	bzero(au32Mem, MEM_NUM);
-	GET_SYS_Mem(au32Mem);
 
-	cJSON_AddNumberToObject(cjRoot, "total_mem",au32Mem[0]);
-	cJSON_AddNumberToObject(cjRoot, "used_mem",au32Mem[1]);
-	cJSON_AddNumberToObject(cjRoot, "free_mem",au32Mem[2]);
-	cJSON_AddNumberToObject(cjRoot, "shared_mem",au32Mem[3]);
-	cJSON_AddNumberToObject(cjRoot, "buff_mem",au32Mem[4]);
-	cJSON_AddNumberToObject(cjRoot, "available_mem",au32Mem[5]);
-	cJSON_AddNumberToObject(cjRoot, "total_low",au32Mem[6]);
-	cJSON_AddNumberToObject(cjRoot, "used_low",au32Mem[7]);
-	cJSON_AddNumberToObject(cjRoot, "free_low",au32Mem[8]);
-	cJSON_AddNumberToObject(cjRoot, "total_high",au32Mem[9]);
-	cJSON_AddNumberToObject(cjRoot, "used_high",au32Mem[10]);
-	cJSON_AddNumberToObject(cjRoot, "free_high",au32Mem[11]);
-	cJSON_AddNumberToObject(cjRoot, "total_sawp",au32Mem[12]);
-	cJSON_AddNumberToObject(cjRoot, "used_sawp",au32Mem[13]);
-	cJSON_AddNumberToObject(cjRoot, "free_swap",au32Mem[14]);
+	uint8_t au8Show[MEM_NUM];
 
+	if(GET_SYS_Mem(au32Mem) == -1)
+	{
+		return cjRoot;
+	}
+
+	//全部输出
+	if(cjOpt->type == cJSON_String && strcmp(GET_SYS_STR_SHOW_ALL, cjOpt->valuestring) == 0)
+	{
+
+		for ( int i = 0 ; i < sizeof(au8Show)/sizeof(uint8_t) ; i ++ )
+		{
+			au8Show[i] = true;
+		}
+	}
+	//筛选输出
+	else if(cjOpt->type == cJSON_Object)
+	{
+		cJSON *cjArray;
+		cJSON *cjTempItem;
+		bool bShowOrNot = false;
+		//指定展示
+		if((cjArray = cJSON_GetObjectItem(cjOpt, GET_SYS_STR_SHOW)) != NULL && cjArray->type == cJSON_Array)
+		{
+			bShowOrNot = true;
+			for ( int i = 0 ; i < sizeof(au8Show)/sizeof(uint8_t) ; i ++ )
+			{
+				au8Show[i] = false;
+			}
+		}
+		//指定不展示
+		else if((cjArray = cJSON_GetObjectItem(cjOpt, GET_SYS_STR_EXCLUDE)) != NULL && cjArray->type == cJSON_Array)
+		{
+			bShowOrNot = false;
+			for ( int i = 0 ; i < sizeof(au8Show)/sizeof(uint8_t) ; i ++ )
+			{
+				au8Show[i] = true;
+			}
+		}
+		//都没有
+		else
+		{
+			printf("json do not have \"e\" or \"s\"\n");
+			return cjRoot;
+		}
+
+		uint32_t u32Len = cJSON_GetArraySize(cjArray);
+
+		for ( int i = 0 ; i < u32Len ; i ++ )
+		{
+			cjTempItem = cJSON_GetArrayItem(cjArray, i);
+			if(cjTempItem != NULL && strcmp(cjTempItem->valuestring,"total_mem") == 0)
+			{
+				au8Show[0] = bShowOrNot;
+			}
+			else if(cjTempItem != NULL && strcmp(cjTempItem->valuestring,"used_mem") == 0)
+			{
+				au8Show[1] = bShowOrNot;
+			}
+			else if(cjTempItem != NULL && strcmp(cjTempItem->valuestring,"free_mem") == 0)
+			{
+				au8Show[2] = bShowOrNot;
+			}
+			else if(cjTempItem != NULL && strcmp(cjTempItem->valuestring,"shared_mem") == 0)
+			{
+				au8Show[3] = bShowOrNot;
+			}
+			else if(cjTempItem != NULL && strcmp(cjTempItem->valuestring,"buff_mem") == 0)
+			{
+				au8Show[4] = bShowOrNot;
+			}
+			else if(cjTempItem != NULL && strcmp(cjTempItem->valuestring,"available_mem") == 0)
+			{
+				au8Show[5] = bShowOrNot;
+			}
+			else if(cjTempItem != NULL && strcmp(cjTempItem->valuestring,"total_low") == 0)
+			{
+				au8Show[6] = bShowOrNot;
+			}
+			else if(cjTempItem != NULL && strcmp(cjTempItem->valuestring,"used_low") == 0)
+			{
+				au8Show[7] = bShowOrNot;
+			}
+			else if(cjTempItem != NULL && strcmp(cjTempItem->valuestring,"free_low") == 0)
+			{
+				au8Show[8] = bShowOrNot;
+			}
+			else if(cjTempItem != NULL && strcmp(cjTempItem->valuestring,"total_high") == 0)
+			{
+				au8Show[9] = bShowOrNot;
+			}
+			else if(cjTempItem != NULL && strcmp(cjTempItem->valuestring,"used_high") == 0)
+			{
+				au8Show[10] = bShowOrNot;
+			}
+			else if(cjTempItem != NULL && strcmp(cjTempItem->valuestring,"free_high") == 0)
+			{
+				au8Show[11] = bShowOrNot;
+			}
+			else if(cjTempItem != NULL && strcmp(cjTempItem->valuestring,"total_swap") == 0)
+			{
+				au8Show[12] = bShowOrNot;
+			}
+			else if(cjTempItem != NULL && strcmp(cjTempItem->valuestring,"used_swap") == 0)
+			{
+				au8Show[13] = bShowOrNot;
+			}
+			else if(cjTempItem != NULL && strcmp(cjTempItem->valuestring,"free_swap") == 0)
+			{
+				au8Show[14] = bShowOrNot;
+			}
+		}
+	}
+
+	if(au8Show[0] > 0)
+	{
+		cJSON_AddNumberToObject(cjRoot, "total_mem",au32Mem[0]);
+	}
+	if(au8Show[1])
+	{
+		cJSON_AddNumberToObject(cjRoot, "used_mem",au32Mem[1]);
+	}
+	if(au8Show[2])
+	{
+		cJSON_AddNumberToObject(cjRoot, "free_mem",au32Mem[2]);
+	}
+	if(au8Show[3])
+	{
+		cJSON_AddNumberToObject(cjRoot, "shared_mem",au32Mem[3]);
+	}
+	if(au8Show[4])
+	{
+		cJSON_AddNumberToObject(cjRoot, "buff_mem",au32Mem[4]);
+	}
+	if(au8Show[5])
+	{
+		cJSON_AddNumberToObject(cjRoot, "available_mem",au32Mem[5]);
+	}
+	if(au8Show[6])
+	{
+		cJSON_AddNumberToObject(cjRoot, "total_low",au32Mem[6]);
+	}
+	if(au8Show[7])
+	{
+		cJSON_AddNumberToObject(cjRoot, "used_low",au32Mem[7]);
+	}
+	if(au8Show[8])
+	{
+		cJSON_AddNumberToObject(cjRoot, "free_low",au32Mem[8]);
+	}
+	if(au8Show[9])
+	{
+		cJSON_AddNumberToObject(cjRoot, "total_high",au32Mem[9]);
+	}
+	if(au8Show[10])
+	{
+		cJSON_AddNumberToObject(cjRoot, "used_high",au32Mem[10]);
+	}
+	if(au8Show[11])
+	{
+		cJSON_AddNumberToObject(cjRoot, "free_high",au32Mem[11]);
+	}
+	if(au8Show[12])
+	{
+		cJSON_AddNumberToObject(cjRoot, "total_swap",au32Mem[12]);
+	}
+	if(au8Show[13])
+	{
+		cJSON_AddNumberToObject(cjRoot, "used_swap",au32Mem[13]);
+	}
+	if(au8Show[14])
+	{
+		cJSON_AddNumberToObject(cjRoot, "free_swap",au32Mem[14]);
+	}
 	return cjRoot;
 }
 

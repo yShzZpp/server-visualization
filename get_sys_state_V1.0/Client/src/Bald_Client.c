@@ -83,7 +83,7 @@ int main(int argc , char *argv[])
 		//mem
 		if( (cjTempItem = cJSON_GetObjectItem(cjOpt, "mem")) != NULL )
 		{
-			cJSON *cjMem = GET_SYS_GetMem();
+			cJSON *cjMem = GET_SYS_GetMem(cjTempItem);
 			if(cjMem != NULL)
 			{
 				cJSON_AddItemToObject(cjRoot, "mem",cjMem);

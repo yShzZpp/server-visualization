@@ -67,7 +67,7 @@ void GET_SYS_DiskFree(void);
 cJSON *GET_SYS_GetNet();
 cJSON *GET_SYS_GetOnce(cJSON *cjOpt);
 cJSON *GET_SYS_GetTime(cJSON *cjOpt);
-cJSON *GET_SYS_GetMem(void);
+cJSON *GET_SYS_GetMem(cJSON *cjOpt);
 cJSON *GET_SYS_GetCpu(void);
 cJSON *GET_SYS_GetDisk(void);
 
