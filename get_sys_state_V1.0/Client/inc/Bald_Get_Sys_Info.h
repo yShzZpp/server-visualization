@@ -5,6 +5,9 @@
 #include <stdint.h>
 #include "../inc/Bald_cJSON.h"
 
+extern const char * const GET_SYS_STR_SHOW_ALL;
+extern const char * const GET_SYS_STR_SHOW;
+extern const char * const GET_SYS_STR_EXCLUDE ;
 
 
 typedef struct net_tx_rx_st
@@ -68,7 +71,7 @@ cJSON *GET_SYS_GetNet();
 cJSON *GET_SYS_GetOnce(cJSON *cjOpt);
 cJSON *GET_SYS_GetTime(cJSON *cjOpt);
 cJSON *GET_SYS_GetMem(cJSON *cjOpt);
-cJSON *GET_SYS_GetCpu(void);
+cJSON *GET_SYS_GetCpu(cJSON *cjOpt);
 cJSON *GET_SYS_GetDisk(void);
 
 

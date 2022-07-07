@@ -93,7 +93,7 @@ int main(int argc , char *argv[])
 		//cpu
 		if( (cjTempItem = cJSON_GetObjectItem(cjOpt, "cpu")) != NULL )
 		{
-			cJSON *cjCpu = GET_SYS_GetCpu();
+			cJSON *cjCpu = GET_SYS_GetCpu(cjTempItem);
 			if(cjCpu != NULL)
 			{
 				cJSON_AddItemToObject(cjRoot, "cpu",cjCpu);

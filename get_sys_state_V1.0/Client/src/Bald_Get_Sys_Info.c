@@ -15,6 +15,7 @@
 
 #include "../inc/Bald_Get_Sys_Info.h"
 #include "../inc/Bald_cJSON.h"
+#include "../inc/Bald_Parse_Opt.h"
 
 #define MAX_BUFF_SIZE 4096
 #define MAX_DISK_NUM 40
@@ -394,7 +395,7 @@ cJSON *GET_SYS_GetTime(cJSON *cjOpt)
  * ****** param			:   @au32Mem:存放信息的数组
  * ****** return		:   成功返回0 失败成功返回0 失败返回-1
  * *******************************************************/
-int16_t GET_SYS_Mem(uint32_t au32Mem[MEM_NUM])
+static int16_t GET_SYS_Mem(uint32_t au32Mem[MEM_NUM])
 {
 	char aTempBuff[MAX_BUFF_SIZE];
 	//按kB为单位获取 内存信息 需要兼容
@@ -616,7 +617,7 @@ cJSON *GET_SYS_GetMem(cJSON *cjOpt)
 /******************************cpu使用率******************************/
 
 //使用sh命令的方法，但是top执行起来会很慢 而且分开三次的结果不是一个同样的结果
-int16_t GET_SYS_UserCpu(char * pcData)
+static int16_t GET_SYS_UserCpu(char * pcData)
 {
 	FILE *fp = popen("top -b -n 1 | grep Cpu | awk '{print $2}' |tr -d '\n' ","r");	
 	int ret = fread(pcData, MAX_BUFF_SIZE, 1, fp);
@@ -631,7 +632,7 @@ int16_t GET_SYS_UserCpu(char * pcData)
 
 }
 
-int16_t GET_SYS_SysCpu(char * pcData)
+static int16_t GET_SYS_SysCpu(char * pcData)
 {
 	FILE *fp = popen("top -b -n 1 | grep Cpu | awk '{print $4}' |tr -d '\n' ","r");	
 	int ret = fread(pcData, MAX_BUFF_SIZE, 1, fp);
@@ -644,7 +645,7 @@ int16_t GET_SYS_SysCpu(char * pcData)
 	return 0;
 }
 
-int16_t GET_SYS_NiceCpu(char * pcData)
+static int16_t GET_SYS_NiceCpu(char * pcData)
 {
 	FILE *fp = popen("top -b -n 1 | grep Cpu | awk '{print $6}' |tr -d '\n' ","r");	
 	int ret = fread(pcData, MAX_BUFF_SIZE, 1, fp);
@@ -658,7 +659,13 @@ int16_t GET_SYS_NiceCpu(char * pcData)
 }
 
 
-int16_t GET_SYS_Proc_Stat(CPU_INFO_ST **ppstCpu)
+/******************************************************
+ * ****** Function		:   GET_SYS_Read_Proc_Stat
+ * ****** brief			:	读取/proc/stat 文件获取cpu的使用情况
+ * ****** param			:   NULL
+ * ****** return		:   NULL
+ * *******************************************************/
+static int16_t GET_SYS_Read_Proc_Stat(CPU_INFO_ST **ppstCpu)
 {
 	char aTempBuff[4096];
 	int fd = open("/proc/stat",O_RDONLY);
@@ -726,7 +733,13 @@ int16_t GET_SYS_Proc_Stat(CPU_INFO_ST **ppstCpu)
 	return 0;
 }
 
-cJSON *GET_SYS_GetCpu(void)
+/******************************************************
+ * ****** Function		:   GET_SYS_GetCpu
+ * ****** brief			:	根据传入的筛选设置，将指定的参数写入json
+ * ****** param			:   @cjOpt:筛选设置
+ * ****** return		:   无论成功与否都返回json
+ * *******************************************************/
+cJSON *GET_SYS_GetCpu(cJSON *cjOpt)
 {
 	int ret;
 	cJSON *cjRoot = cJSON_CreateObject();
@@ -735,29 +748,114 @@ cJSON *GET_SYS_GetCpu(void)
 	CPU_INFO_ST *pstCpu = malloc(sizeof(CPU_INFO_ST));
 	bzero(pstCpu, sizeof(CPU_INFO_ST));
 	pstCpu->u32CpuNum = 0;
-	ret = GET_SYS_Proc_Stat(&pstCpu);
+
+	//读取文件
+	ret = GET_SYS_Read_Proc_Stat(&pstCpu);
 	if(ret == -1)
 	{
-		free(pstCpu); pstCpu = NULL;
-		return NULL;
+		free(pstCpu); 
+		pstCpu = NULL;
+		return cjRoot;
 	}
 
+	uint8_t au8Show_1[6],au8Show_3[8];
+	char *pau8Show_2[pstCpu->u32CpuNum];
 
-	for(uint32_t i = 0 ; i < pstCpu->u32CpuNum ; i++)
+	//开辟空间并赋值
+	for( uint32_t i = 0 ; i < pstCpu->u32CpuNum ; i++ )
 	{
-		cJSON *cjTempItem = cJSON_CreateObject();
-		cJSON_AddStringToObject(cjTempItem, "name",pstCpu->stCpu[i].cName);
-		cJSON_AddNumberToObject(cjTempItem, "user",pstCpu->stCpu[i].u32User);
-		cJSON_AddNumberToObject(cjTempItem, "nice",pstCpu->stCpu[i].u32Nice);
-		cJSON_AddNumberToObject(cjTempItem, "sys",pstCpu->stCpu[i].u32Sys);
-		cJSON_AddNumberToObject(cjTempItem, "idle",pstCpu->stCpu[i].u32Idle);
-		cJSON_AddNumberToObject(cjTempItem, "iowait",pstCpu->stCpu[i].u32Iowait);
-		cJSON_AddNumberToObject(cjTempItem, "irq",pstCpu->stCpu[i].u32Irq);
-		cJSON_AddNumberToObject(cjTempItem, "softirq",pstCpu->stCpu[i].u32Softirq);
-
-
-		cJSON_AddItemToArray(cjaCpuArray, cjTempItem);
+		//cpu名字最多10个字节
+		pau8Show_2[i] = malloc(10);
+		strncpy(pau8Show_2[i],pstCpu->stCpu[i].cName,10);
 	}
+
+	//cpu占用率赋值
+	for ( uint32_t i = 0 ; i < BALD_OPT_CPU_1 ; i ++ )
+	{
+		au8Show_1[i] = true;
+	}
+
+	//cpu属性赋值
+	for ( uint32_t i = 0 ; i < BALD_OPT_CPU_3 ; i ++ )
+	{
+		au8Show_3[i] = true;
+	}
+
+	if( BALD_PARSE_OPT_Cpu(cjOpt, au8Show_1, pau8Show_2,pstCpu->u32CpuNum, au8Show_3) == -1 )	
+	{
+		//释放空间
+
+		for( uint32_t i = 0 ; i < pstCpu->u32CpuNum ; i++ )
+		{
+			//cpu名字最多10个字节
+			free(pau8Show_2[i]);
+			pau8Show_2[i] = NULL;
+		}
+
+		free(pstCpu);
+		pstCpu = NULL;
+		
+		return cjRoot;
+	}
+	
+						/*********输出**********/
+	if(au8Show_1[5])
+	{
+		for(uint32_t i = 0 ; i < pstCpu->u32CpuNum ; i++)
+		{
+			bool bShow = false;
+			for ( uint32_t j = 0 ; j < pstCpu->u32CpuNum ; j ++ )
+			{
+				if( strncmp(pstCpu->stCpu[i].cName,pau8Show_2[j],10) == 0)
+				{
+					bShow = true;
+				}
+			}
+
+			if(!bShow)
+			{
+				continue;
+			}
+
+			cJSON *cjTempItem = cJSON_CreateObject();
+			if( au8Show_3[0])
+			{
+				cJSON_AddStringToObject(cjTempItem, "name",pstCpu->stCpu[i].cName);
+			}
+			if( au8Show_3[1])
+			{
+				cJSON_AddNumberToObject(cjTempItem, "user",pstCpu->stCpu[i].u32User);
+			}
+			if( au8Show_3[2])
+			{
+				cJSON_AddNumberToObject(cjTempItem, "nice",pstCpu->stCpu[i].u32Nice);
+			}
+			if( au8Show_3[3])
+			{
+				cJSON_AddNumberToObject(cjTempItem, "sys",pstCpu->stCpu[i].u32Sys);
+			}
+			if( au8Show_3[4])
+			{
+				cJSON_AddNumberToObject(cjTempItem, "idle",pstCpu->stCpu[i].u32Idle);
+			}
+			if( au8Show_3[5])
+			{
+				cJSON_AddNumberToObject(cjTempItem, "iowait",pstCpu->stCpu[i].u32Iowait);
+			}
+			if( au8Show_3[6])
+			{
+				cJSON_AddNumberToObject(cjTempItem, "irq",pstCpu->stCpu[i].u32Irq);
+			}
+			if( au8Show_3[7])
+			{
+				cJSON_AddNumberToObject(cjTempItem, "softirq",pstCpu->stCpu[i].u32Softirq);
+			}
+
+			cJSON_AddItemToArray(cjaCpuArray, cjTempItem);
+		}
+		cJSON_AddItemToObject(cjRoot, "jiffies", cjaCpuArray);
+	}
+
 
 	//判断是否是第一次
 	if( g_stCpu.u32User == 0 )
@@ -777,12 +875,6 @@ cJSON *GET_SYS_GetCpu(void)
 			g_stCpu.u32Nice + g_stCpu.u32Sys + 
 			g_stCpu.u32Idle + g_stCpu.u32Iowait + 
 			g_stCpu.u32Irq + g_stCpu.u32Softirq ;
-	
-	/** float fCpuUsed_1 = ((	g_stCpu.stCpu[0].u32User - pstCpu->stCpu[0].u32User) +  */
-	/**                 ( g_stCpu.stCpu[0].u32Sys - pstCpu->stCpu[0].u32Sys)) *100.0 /  */
-	/**                 ((	g_stCpu.stCpu[0].u32User - pstCpu->stCpu[0].u32User) +  */
-	/**                 ( g_stCpu.stCpu[0].u32Sys - pstCpu->stCpu[0].u32Sys) + */
-	/**                 ( g_stCpu.stCpu[0].u32Idle - pstCpu->stCpu[0].u32Idle)); */
 
 	if(u32Total_1 - u32Total_2 > 0)
 	{
@@ -796,20 +888,43 @@ cJSON *GET_SYS_GetCpu(void)
 						(u32Total_2 - u32Total_1);
 		float fCpuIowait = ( pstCpu->stCpu[0].u32Iowait - g_stCpu.u32Iowait ) * 100.0 /
 						(u32Total_2 - u32Total_1);
-		cJSON_AddNumberToObject(cjRoot, "us", fCpuUser);
-		cJSON_AddNumberToObject(cjRoot, "sy", fCpuSys);
-		cJSON_AddNumberToObject(cjRoot, "ni", fCpuNice);
-		cJSON_AddNumberToObject(cjRoot, "id", fCpuIdle);
-		cJSON_AddNumberToObject(cjRoot, "wa", fCpuIowait);
+		if(au8Show_1[0])
+		{
+			cJSON_AddNumberToObject(cjRoot, "us", fCpuUser);
+		}
+		if(au8Show_1[1])
+		{
+			cJSON_AddNumberToObject(cjRoot, "sy", fCpuSys);
+		}	
+		if(au8Show_1[2])
+		{
+			cJSON_AddNumberToObject(cjRoot, "ni", fCpuNice);
+		}	
+		if(au8Show_1[3])
+		{
+			cJSON_AddNumberToObject(cjRoot, "id", fCpuIdle);
+		}	
+		if(au8Show_1[4])
+		{
+			cJSON_AddNumberToObject(cjRoot, "wa", fCpuIowait);
+		}	
 	}
 
 
 	memcpy(&g_stCpu,&pstCpu->stCpu[0],sizeof(CPU_INFO_ST)+sizeof(CPU_JIFFIES_ST) * pstCpu->u32CpuNum);
 
+	//释放空间
+
+	for( uint32_t i = 0 ; i < pstCpu->u32CpuNum ; i++ )
+	{
+		//cpu名字最多10个字节
+		free(pau8Show_2[i]);
+		pau8Show_2[i] = NULL;
+	} 
+
 	free(pstCpu);
 	pstCpu = NULL;
 
-	cJSON_AddItemToObject(cjRoot, "jiffies", cjaCpuArray);
 
 
 	return cjRoot;
@@ -961,7 +1076,7 @@ cJSON *GET_SYS_GetNet(void)
 }
 
 
-void GET_SYS_NetInit()
+void GET_SYS_NetInit(void)
 {
 	g_pstNet = malloc(sizeof(NET_INFO_ST));
 	memset(g_pstNet,0,sizeof(NET_INFO_ST));
@@ -971,7 +1086,7 @@ void GET_SYS_NetInit()
 
 /******************************磁盘******************************/
 
-void GET_SYS_DiskInit()
+void GET_SYS_DiskInit(void)
 {
 	char aTempBuff[MAX_BUFF_SIZE];
 	bzero(aTempBuff, MAX_BUFF_SIZE);
@@ -1090,15 +1205,13 @@ cJSON *GET_SYS_GetDisk(void)
 	return cjaRoot;
 }
 
-void GET_SYS_DiskFree()
+void GET_SYS_DiskFree(void)
 {
 	for ( int i = 0 ; i < g_u8DiskNum ; i ++ )
 	{
 		free(g_paDiskPath[i]);
 	}
 }
-
-
 
 
 
